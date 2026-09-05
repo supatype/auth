@@ -42,6 +42,11 @@ type Config struct {
 	// UI access by accident. Nil keeps the legacy claim-based path, so a
 	// deployment that has not been migrated still works.
 	StudioRole StudioRoleLookup
+	// AdminConfigPath is the generated `admin-config.json`, relative to the
+	// working directory. `AdminRolesFromConfigFile` already reads it; the preview
+	// endpoints read the publishing block from the same file, so settings the
+	// engine writes reach this process by one route rather than two.
+	AdminConfigPath string
 }
 
 // StudioRoleLookup returns the Studio role recorded for a user id. The second
@@ -51,13 +56,14 @@ type StudioRoleLookup func(userID string) (string, bool)
 // ConfigFromServer builds handler config from ServerConfig and admin-config path.
 func ConfigFromServer(cfg *config.Config) Config {
 	return Config{
-		JWTSecret:      cfg.JWTSecret,
-		ServiceRoleKey: cfg.ServiceRoleKey,
-		AnonKey:        cfg.AnonKey,
-		AdminRoles:     AdminRolesFromConfigFile(cfg.AdminConfigPath, cfg.StudioAdminRoles),
-		Mode:           cfg.Mode,
-		OpenDev:        cfg.StudioOpenDev.Bool(),
-		PublicURLs:     cfg.PublicURLs,
+		JWTSecret:       cfg.JWTSecret,
+		ServiceRoleKey:  cfg.ServiceRoleKey,
+		AnonKey:         cfg.AnonKey,
+		AdminRoles:      AdminRolesFromConfigFile(cfg.AdminConfigPath, cfg.StudioAdminRoles),
+		AdminConfigPath: cfg.AdminConfigPath,
+		Mode:            cfg.Mode,
+		OpenDev:         cfg.StudioOpenDev.Bool(),
+		PublicURLs:      cfg.PublicURLs,
 	}
 }
 

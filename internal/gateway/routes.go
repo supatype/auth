@@ -85,6 +85,16 @@ func Routes() []Route {
 			Log:     "mux: Studio membership API mounted at /admin/studio-members",
 		},
 		{Pattern: "/admin/studio-members/*", Verb: HandleExact, Build: buildStudioMembers},
+		// Signed preview links. Mounted beside Studio membership rather than under
+		// /admin/v1 for the same reason: this is authenticated as a project user
+		// with a Studio role, not with the service-role key.
+		{
+			Pattern: "/admin/preview-links",
+			Verb:    POST,
+			Build:   buildPreviewLinks,
+			Log:     "mux: preview link API mounted at /admin/preview-links",
+		},
+		{Pattern: "/admin/preview-links/revoke", Verb: POST, Build: buildPreviewLinks},
 		{
 			Pattern: "/sql",
 			Verb:    POST,

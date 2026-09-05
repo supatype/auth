@@ -94,6 +94,8 @@ PATCH   /rest/v1/*
 PATCH   /storage/v1/*
 PATCH   /studio/proxy/*
 POST    /*
+POST    /admin/preview-links
+POST    /admin/preview-links/revoke
 POST    /admin/studio-members
 POST    /admin/studio-members/*
 POST    /admin/studio-roles

@@ -60,6 +60,8 @@ func buildSQLRunner(d *Deps) http.Handler {
 }
 
 func buildStudioMembers(d *Deps) http.Handler { return studioauth.MembersAPI(d.Studio) }
+
+func buildPreviewLinks(d *Deps) http.Handler  { return studioauth.PreviewAPI(d.Studio) }
 func buildStudioVerify(d *Deps) http.Handler  { return studioauth.VerifyHandler(d.Studio) }
 func buildStudioSchema(d *Deps) http.Handler  { return studioauth.SchemaHandler(d.Studio) }
 func buildStudioSession(d *Deps) http.Handler { return studioauth.SessionHandler(d.Studio) }
