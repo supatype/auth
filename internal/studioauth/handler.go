@@ -79,7 +79,7 @@ func VerifyHandler(c Config) http.HandlerFunc {
 			utilities.WriteJSON(w, http.StatusOK, verifyOKResponse(Result{
 				Role: "dev-bypass",
 				Sub:  "dev-bypass",
-			}))
+			}, c))
 			return
 		}
 
@@ -97,7 +97,7 @@ func VerifyHandler(c Config) http.HandlerFunc {
 			return
 		}
 
-		utilities.WriteJSON(w, http.StatusOK, verifyOKResponse(result))
+		utilities.WriteJSON(w, http.StatusOK, verifyOKResponse(result, c))
 	}
 }
 
@@ -106,7 +106,7 @@ func VerifyHandler(c Config) http.HandlerFunc {
 // It used to hardcode every permission to true, so an `editor` membership row was
 // handed a full-access UI while the control plane restricted the same role — the
 // two hosts disagreeing about what a role means.
-func verifyOKResponse(result Result) map[string]interface{} {
+func verifyOKResponse(result Result, c Config) map[string]interface{} {
 	perms := result.Permissions
 	if perms == nil {
 		legacy := legacyAdminPermissions()
@@ -128,7 +128,39 @@ func verifyOKResponse(result Result) map[string]interface{} {
 		"permissions": perms,
 		"mode":        mode,
 		"canElevate":  perms.ElevatedSQL,
+		"seesDrafts":  roleSeesDrafts(result.Role, c),
 	}
+}
+
+// roleSeesDrafts answers whether this caller sees other people's unpublished work.
+//
+// **Studio needs telling, because row level security cannot tell it.** Studio's
+// data plane goes through the proxy with the service role, which bypasses
+// policies entirely — that is deliberate, Studio is an admin tool gated by its
+// own capability system rather than by each project's access rules. But it means
+// the draft-visibility setting, which the generated policies compile in, binds
+// the API and not the UI. A project that narrowed it would still see every draft
+// here.
+//
+// So the setting is enforced in both places from **one stored answer**: the
+// policies read `_supatype.publishing_settings`, and this reads the same list out
+// of the config the engine writes from it. Two enforcement points, one source of
+// truth, and neither side owns a copy of the rule.
+//
+// A project with no versioned models has no publishing config, and nothing to
+// show, so the answer is false and Studio renders no draft affordances at all.
+func roleSeesDrafts(role string, c Config) bool {
+	settings, err := PublishingSettingsFromConfigFile(c.AdminConfigPath)
+	if err != nil {
+		return false
+	}
+	// The dev bypass has no membership row and no role, and it exists to open
+	// Studio completely on a locally addressed deployment. Withholding drafts
+	// from it would be a strange half-measure.
+	if c.DevBypass() {
+		return true
+	}
+	return settings.RoleSeesDrafts(role)
 }
 
 // RequireAdmin wraps a handler with studio admin JWT checks (skipped when DevBypass).
