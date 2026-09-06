@@ -11,51 +11,59 @@ import (
 	"github.com/supatype/server/internal/utilities"
 )
 
-// PreviewAPI mints and revokes signed links that let someone read a draft.
+// PreviewAPI mints, lists and revokes links that let someone read a draft.
 //
-//	POST /admin/preview-links          — mint one  {"model","recordId","scope","ttl"}
-//	POST /admin/preview-links/revoke   — withdraw every outstanding link
+//	POST /admin/preview-links            mint one   {"model","recordId","scope","ttl"}
+//	GET  /admin/preview-links?model=&recordId=      the live links for one record
+//	POST /admin/preview-links/{id}/revoke           withdraw that one link
+//	POST /admin/preview-links/revoke                withdraw every link at once
 //
-// # Why a signed link rather than a grant
+// # Why a link rather than a grant
 //
 // A draft is visible to its creator and to the project's Studio roles. None of
 // that helps the person a draft most needs showing to: a client, a lawyer, an
 // editor's editor, who has no account and should not be given one to read one
-// post. A short-lived signed token is the whole of their credential.
+// post. A short-lived link is the whole of their credential.
 //
-// The token is a JWT signed with the **project's own secret**, so PostgREST
-// validates it on the path it already uses and the claim arrives in
-// `request.jwt.claims` where the generated policies read it. There is no second
-// verification path to keep in step, and no service-role key anywhere near a
-// preview route.
+// # What is handed out, and what the database sees
 //
-// # What the token deliberately does not carry
+// The link is an id and a secret. Only the id and a hash of the secret are
+// stored, so the table is not a database of secrets: it can be read end to end
+// without opening a draft. The bearer exchanges the code at `/preview-links/
+// resolve` for a JWT that lives about a minute, and it is that JWT which
+// PostgREST verifies and the generated policies read from
+// `request.jwt.claims`. So authorization still happens exactly where it did, and
+// there is no second verification path to keep in step.
 //
-// **No `sub`.** `auth.uid()` is then null and the bearer inherits nothing from
-// looking logged in: the preview claim is the only thing that can match, and it
-// matches exactly one record unless the link is project-scoped. A token with a
-// subject would make its holder that person for the life of the link.
+// This replaced handing out the JWT itself. That worked, but the token *was* the
+// link, which meant a 400-character URL and, worse, nothing to revoke: a signed
+// token cannot be recalled, so withdrawing one link meant bumping a counter that
+// stranded every other link in the project.
 //
-// # Revocation
-//
-// A signed token cannot be recalled, only outwaited. So every link carries the
-// epoch it was minted under, the policies compare it against a counter in
-// `_supatype`, and bumping that counter invalidates every outstanding link at
-// once. That is what `/revoke` does, and it is why project-scoped links are worth
-// having at all: the blast radius is bounded by something an operator can pull.
+// **No `sub`, in the exchanged token.** `auth.uid()` is then null and the bearer
+// inherits nothing from looking logged in: the preview claim is the only thing
+// that can match, and it matches one record unless the link is project-scoped. A
+// token with a subject would make its holder that person for its lifetime.
 func PreviewAPI(c Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		path := strings.Trim(strings.TrimPrefix(req.URL.Path, "/admin/preview-links"), "/")
+
+		if req.Method == http.MethodGet && path == "" {
+			listPreviewLinksForRecord(w, req, c)
+			return
+		}
 		if req.Method != http.MethodPost {
 			utilities.WriteJSON(w, http.StatusMethodNotAllowed, errorBody("method not allowed"))
 			return
 		}
 
-		path := strings.TrimPrefix(req.URL.Path, "/admin/preview-links")
-		switch strings.Trim(path, "/") {
-		case "":
+		switch {
+		case path == "":
 			mintPreviewLink(w, req, c)
-		case "revoke":
+		case path == "revoke":
 			revokePreviewLinks(w, req, c)
+		case strings.HasSuffix(path, "/revoke"):
+			revokeOnePreviewLink(w, req, c, strings.TrimSuffix(path, "/revoke"))
 		default:
 			utilities.WriteJSON(w, http.StatusNotFound, errorBody("not found"))
 		}
@@ -83,7 +91,10 @@ type previewRequest struct {
 }
 
 type previewResponse struct {
-	Token     string `json:"token"`
+	// The credential, shown once. Studio does not keep it: keeping it would be keeping a secret it
+	// has no reason to hold, and the id below is enough to list and revoke the link later.
+	Code      string `json:"code"`
+	ID        string `json:"id"`
 	ExpiresAt string `json:"expiresAt"`
 	Scope     string `json:"scope"`
 	Model     string `json:"model,omitempty"`
@@ -144,21 +155,28 @@ func mintPreviewLink(w http.ResponseWriter, req *http.Request, c Config) {
 	}
 
 	expires := time.Now().Add(time.Duration(ttl) * time.Second)
-	token, err := signPreviewToken(c.JWTSecret, previewClaims{
-		Scope:    scope,
-		Model:    body.Model,
-		RecordID: body.RecordID,
-		Epoch:    epoch,
-		IssuedBy: sub,
-		Expires:  expires,
-	})
+
+	id, secret, code, err := newPreviewCode()
 	if err != nil {
-		utilities.WriteJSON(w, http.StatusInternalServerError, errorBody("could not sign the link"))
+		utilities.WriteJSON(w, http.StatusInternalServerError, errorBody("could not mint a link"))
+		return
+	}
+
+	link := PreviewLink{ID: id, Scope: string(scope), CreatedBy: sub}
+	if scope == PreviewScopeRecord {
+		link.Model = body.Model
+		link.RecordID = body.RecordID
+	}
+	if err := storePreviewLink(req.Context(), c, link, hashPreviewSecret(secret), epoch, expires); err != nil {
+		// Fail loudly rather than returning a code nothing can resolve, which would read to its
+		// holder as a draft that does not exist.
+		utilities.WriteJSON(w, http.StatusServiceUnavailable, errorBody("could not record the link"))
 		return
 	}
 
 	response := previewResponse{
-		Token:     token,
+		Code:      code,
+		ID:        id,
 		ExpiresAt: expires.UTC().Format(time.RFC3339),
 		Scope:     string(scope),
 	}

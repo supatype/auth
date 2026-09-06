@@ -87,10 +87,10 @@ func PublishingSettingsFromConfigFile(path string) (PublishingSettings, error) {
 	}
 
 	settings := PublishingSettings{
-		DraftVisibility:   cfg.Publishing.DraftVisibility,
-		DefaultTTL:        positiveOr(cfg.Publishing.PreviewDefaultTTL, defaultPreviewTTL),
-		MaxRecordTTL:      positiveOr(cfg.Publishing.PreviewMaxRecordTTL, defaultMaxRecordTTL),
-		MaxProjectTTL:     positiveOr(cfg.Publishing.PreviewMaxProjectTTL, defaultMaxProjectTTL),
+		DraftVisibility: cfg.Publishing.DraftVisibility,
+		DefaultTTL:      positiveOr(cfg.Publishing.PreviewDefaultTTL, defaultPreviewTTL),
+		MaxRecordTTL:    positiveOr(cfg.Publishing.PreviewMaxRecordTTL, defaultMaxRecordTTL),
+		MaxProjectTTL:   positiveOr(cfg.Publishing.PreviewMaxProjectTTL, defaultMaxProjectTTL),
 		AllowProjectScope: cfg.Publishing.PreviewAllowProjectScope == nil ||
 			*cfg.Publishing.PreviewAllowProjectScope,
 	}
