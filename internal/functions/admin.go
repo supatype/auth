@@ -50,6 +50,10 @@ func Handler(cfg *config.Config, functionsDir string, manager LogSource) http.Ha
 
 	r.Get("/list", listFunctions(functionsDir))
 	r.Get("/{name}/logs", functionLogs(manager))
+	// The live tail, relayed from the external worker. `RecentLogs` above only answers when this
+	// server supervises Deno itself, which it does not in Compose or on cloud: the read API was
+	// there and nothing wrote to it.
+	r.Get("/logs/tail", tailFunctionLogs(newLogStream(cfg.FunctionsWorkerURL)))
 	shared, perFunction := sharedEnvFile(functionsDir), functionEnvFile(functionsDir)
 	r.Get("/env", listEnv(shared))
 	r.Post("/env", setEnv(shared))

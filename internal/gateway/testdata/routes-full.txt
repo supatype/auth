@@ -43,6 +43,7 @@ GET     /auth/v1/*
 GET     /functions/v1/*
 GET     /functions/v1/admin/env
 GET     /functions/v1/admin/list
+GET     /functions/v1/admin/logs/tail
 GET     /functions/v1/admin/{name}/env
 GET     /functions/v1/admin/{name}/logs
 GET     /graphql/v1/*
