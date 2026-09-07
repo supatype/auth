@@ -87,9 +87,13 @@ func tailFunctionLogs(stream *logStream) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		flusher.Flush()
 
-		relay(r.Context(), upstream, w, flusher)
+		relay(r.Context(), upstream, w, flusher, keepAliveInterval)
 	}
 }
+
+// How often an idle tail emits a comment. A parameter on relay rather than a literal inside it so a
+// test can drive that branch without waiting twenty seconds for it.
+const keepAliveInterval = 20 * time.Second
 
 func (s *logStream) open(ctx context.Context) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.workerURL+"/functions/v1/_logs", nil)
@@ -111,7 +115,7 @@ func (s *logStream) open(ctx context.Context) (io.ReadCloser, error) {
 
 // relay copies lines through, flushing each one, and sends a comment periodically so an idle tail
 // is not mistaken for a dead connection by anything between here and the reader.
-func relay(ctx context.Context, upstream io.Reader, w io.Writer, flusher http.Flusher) {
+func relay(ctx context.Context, upstream io.Reader, w io.Writer, flusher http.Flusher, keepAliveEvery time.Duration) {
 	lines := make(chan string)
 	go func() {
 		defer close(lines)
@@ -131,7 +135,7 @@ func relay(ctx context.Context, upstream io.Reader, w io.Writer, flusher http.Fl
 		}
 	}()
 
-	keepAlive := time.NewTicker(20 * time.Second)
+	keepAlive := time.NewTicker(keepAliveEvery)
 	defer keepAlive.Stop()
 
 	for {
