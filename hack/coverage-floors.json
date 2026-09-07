@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-package coverage ratchet, enforced by tools/coveragegate. 'pinned' is held at 100%: the Supatype-owned seam, plus anything else already there. 'packages' is a measured floor, meaning no worse than the day it was recorded. A package with no entry falls to 'default'. Reseed deliberately, in its own commit: make coverage-reseed",
+  "_comment": "Per-package coverage ratchet, enforced by tools/coveragegate. 'pinned' is held at 100%: the Supatype-owned seam, plus anything else already there. 'packages' is a measured floor, meaning no worse than the day it was recorded. A package with no entry falls to 'default'. Reseed deliberately, in its own commit: make coverage-reseed. internal/studioauth is measured at 99.7 rather than pinned: two statements in it cannot be reached, the error branch on signPreviewToken, where HS256 takes a []byte key and claims that always marshal, so there is no failure to provoke.",
   "default": 100,
   "exclude": [
     ".",
@@ -45,7 +45,6 @@
     "internal/studiomembers",
     "internal/utilities/version"
   ],
-  "_comment_studioauth": "internal/studioauth is a measured floor rather than pinned because two statements in it cannot be reached: the error branch on signPreviewToken in preview_resolve.go. HS256 signing takes a []byte key and claims that always marshal, so it has no failure mode to exercise, and the only ways to cover it are a mutable signing seam in the auth path or dropping a real error return. Everything else in the package is covered.",
   "packages": {
     "internal/auth": 66.4,
     "internal/auth/apiworker": 0,
