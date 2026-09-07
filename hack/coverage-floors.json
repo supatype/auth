@@ -41,11 +41,11 @@
     "internal/stff",
     "internal/sqlrunner",
     "internal/static",
-    "internal/studioauth",
     "internal/studiobootstrap",
     "internal/studiomembers",
     "internal/utilities/version"
   ],
+  "_comment_studioauth": "internal/studioauth is a measured floor rather than pinned because two statements in it cannot be reached: the error branch on signPreviewToken in preview_resolve.go. HS256 signing takes a []byte key and claims that always marshal, so it has no failure mode to exercise, and the only ways to cover it are a mutable signing seam in the auth path or dropping a real error return. Everything else in the package is covered.",
   "packages": {
     "internal/auth": 66.4,
     "internal/auth/apiworker": 0,
@@ -73,6 +73,7 @@
     "internal/observability": 38.18,
     "internal/platformproxy": 82.83,
     "internal/security": 77.28,
+    "internal/studioauth": 99.7,
     "internal/auth/storage": 82.9,
     "internal/auth/tokens": 78.64,
     "internal/utilities": 74.07,

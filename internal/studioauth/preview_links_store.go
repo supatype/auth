@@ -77,17 +77,22 @@ func previewPool(c Config) (previewStore, error) {
 	return c.Resources.AdminPool()
 }
 
+// randRead is crypto/rand.Read, named so a test can make it fail. A CSPRNG that will not produce
+// bytes must abort minting rather than fall back to anything, and the only way to hold that line is
+// to exercise it.
+var randRead = rand.Read
+
 // newPreviewCode mints an id and a secret, and returns the code that joins them.
 //
 // The separator is a dot so the two halves split without knowing either length, which means
 // changing a length later does not invalidate codes already in the wild.
 func newPreviewCode() (id string, secret string, code string, err error) {
 	idBytes := make([]byte, previewIDBytes)
-	if _, err = rand.Read(idBytes); err != nil {
+	if _, err = randRead(idBytes); err != nil {
 		return "", "", "", err
 	}
 	secretBytes := make([]byte, previewSecretBytes)
-	if _, err = rand.Read(secretBytes); err != nil {
+	if _, err = randRead(secretBytes); err != nil {
 		return "", "", "", err
 	}
 	enc := base64.RawURLEncoding
